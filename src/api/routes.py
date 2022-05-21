@@ -2,9 +2,12 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Acccounts
+from api.models import db, User, Account
 from api.utils import generate_sitemap, APIException
 from flask_jwt_extended import create_access_token, jwt_required
+from argon2 import PasswordHasher
+
+ph = PasswordHasher()
 
 api = Blueprint('api', __name__)
 
@@ -23,7 +26,7 @@ def register():
     payload = request.get_json()
 
     user = User(email = payload[ 'email' ], 
-    password = payload[ 'password' ], 
+    password = ph.hash(payload[ 'password' ]), 
     is_active = True)
 
     db.session.add(user)
@@ -38,7 +41,9 @@ def login():
     user = User.query.filter(User.email == payload['email']).first()
     if user is None:
         return 'failed-auth', 401
-    if user.password != payload['password']:
+    try:
+        ph.verify(user.password, payload['password'])
+    except:
         return 'failed-auth', 401
     
     token = create_access_token(identity=user.id)
